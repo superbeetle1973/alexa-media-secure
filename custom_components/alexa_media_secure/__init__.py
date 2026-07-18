@@ -823,6 +823,27 @@ async def async_setup_entry(hass, config_entry):
                             cookie_login_ok = True
             except (JSONDecodeError, ValueError, aiohttp.ClientError) as ex:
                 _LOGGER.debug("[BOOT] Bootstrap cookie auth check failed: %s", ex)
+        if not cookie_login_ok and login.refresh_token:
+            # Secure path: no persisted cookies — reconstruct the session from
+            # the stored device refresh token (no scraping, no proxy).
+            try:
+                if (
+                    await login.refresh_access_token()
+                    and await login.exchange_token_for_cookies()
+                    and await login.test_loggedin()
+                ):
+                    login.status["login_successful"] = True
+                    login.customer_id = login.customer_id or account.get(
+                        CONF_OAUTH, {}
+                    ).get("customer_id")
+                    login.stats["login_timestamp"] = datetime.now()
+                    login.stats["api_calls"] = 0
+                    await login.check_domain()
+                    await login.finalize_login()
+                    cookie_login_ok = True
+                    _LOGGER.debug("[BOOT] Session reconstructed from refresh token")
+            except (JSONDecodeError, ValueError, aiohttp.ClientError) as ex:
+                _LOGGER.debug("[BOOT] Refresh-token bootstrap failed: %s", ex)
         if not cookie_login_ok:
             await login.login(cookies=cookies)
         _LOGGER.debug("[BOOT] login completed in %.2fs", time.monotonic() - _t)
