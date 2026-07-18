@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 
 from aiohttp import ClientConnectionError, ClientSession, InvalidURL, web, web_response
 from aiohttp.web_exceptions import HTTPBadRequest
+from alexapy_secure.secureauth import EnrollmentError, EnrollmentFlow
 from alexapy_secure import (
     AlexaLogin,
     AlexaProxy,
@@ -28,6 +29,7 @@ from alexapy_secure import (
     obfuscate,
 )
 from awesomeversion import AwesomeVersion
+import aiohttp
 from homeassistant import config_entries
 from homeassistant.components.http.view import HomeAssistantView
 from homeassistant.components.persistent_notification import (
@@ -81,6 +83,8 @@ from .helpers import calculate_uuid
 
 _LOGGER = logging.getLogger(__name__)
 
+CONF_PASTE_URL = "paste_url"
+
 CONFIG_VERSION = 1
 
 
@@ -124,6 +128,7 @@ class AlexaMediaFlowHandler(config_entries.ConfigFlow):
     def __init__(self):
         """Initialize the config flow."""
         self.login = None
+        self._enrollment = None
         self.securitycode: Optional[str] = None
         self.automatic_steps: int = 0
         self.config = OrderedDict()
@@ -157,59 +162,25 @@ class AlexaMediaFlowHandler(config_entries.ConfigFlow):
         return await self.async_step_user_legacy(import_config)
 
     async def async_step_user(self, user_input=None):
-        # pylint: disable=too-many-branches
+        """Step 1: collect the account label + region, then show the login URL.
 
-        """Provide a proxy for login."""
+        Secure enrollment: the user logs in on Amazon's own page in their
+        browser (paste-URL flow) — no password or TOTP seed is ever entered
+        here or stored. See https://github.com/superbeetle1973/alexa-auth-redesign
+        """
         self._save_user_input_to_config(user_input=user_input)
-        """ Internal URL for proxy authentication """
-        try:
-            hass_url: str = get_url(self.hass, allow_external=False)
-        except NoURLAvailableError:
-            hass_url = DEFAULT_HASS_URL
-
-        """ External URL for cloud connected services """
-        try:
-            url: str = get_url(self.hass, allow_internal=False)
-        except NoURLAvailableError:
-            DEFAULT_PUBLIC_URL = ""
-        else:
-            DEFAULT_PUBLIC_URL = url if url.endswith("/") else url + "/"
-
-        self.proxy_schema = OrderedDict(
+        reauth = bool(self.config.get("reauth"))
+        user_schema = OrderedDict(
             [
                 (
                     vol.Required(
-                        CONF_URL, default=self.config.get(CONF_URL, "amazon.com")
+                        CONF_EMAIL, default=self.config.get(CONF_EMAIL, "")
                     ),
-                    str,
-                ),
-                (
-                    vol.Required(CONF_EMAIL, default=self.config.get(CONF_EMAIL, "")),
                     str,
                 ),
                 (
                     vol.Required(
-                        CONF_PASSWORD, default=self.config.get(CONF_PASSWORD, "")
-                    ),
-                    str,
-                ),
-                (
-                    vol.Optional(
-                        CONF_OTPSECRET, default=self.config.get(CONF_OTPSECRET, "")
-                    ),
-                    str,
-                ),
-                (
-                    vol.Optional(
-                        CONF_HASS_URL,
-                        default=self.config.get(CONF_HASS_URL, hass_url),
-                    ),
-                    str,
-                ),
-                (
-                    vol.Optional(
-                        CONF_PUBLIC_URL,
-                        default=self.config.get(CONF_PUBLIC_URL, DEFAULT_PUBLIC_URL),
+                        CONF_URL, default=self.config.get(CONF_URL, "amazon.com")
                     ),
                     str,
                 ),
@@ -261,112 +232,104 @@ class AlexaMediaFlowHandler(config_entries.ConfigFlow):
                 ),
             ]
         )
-        if not user_input:
+        if not user_input or not self.config.get(CONF_EMAIL):
             return self.async_show_form(
                 step_id="user",
-                data_schema=vol.Schema(self.proxy_schema),
-                description_placeholders={"message": ""},
+                data_schema=vol.Schema(user_schema),
+                description_placeholders={"message": "REAUTH" if reauth else ""},
             )
-        if self.login is None:
-            try:
-                self.login = self.hass.data[DATA_ALEXAMEDIA]["accounts"][
-                    self.config[CONF_EMAIL]
-                ].get("login_obj")
-            except KeyError:
-                self.login = None
+        self._enrollment = EnrollmentFlow(domain=self.config[CONF_URL])
+        return self.async_show_form(
+            step_id="paste",
+            data_schema=vol.Schema(
+                {vol.Required(CONF_PASTE_URL): str}
+            ),
+            description_placeholders={
+                "url": self._enrollment.oauth_url,
+                "email": self.config[CONF_EMAIL],
+            },
+        )
+
+    async def async_step_paste(self, user_input=None):
+        """Step 2: accept the pasted maplanding URL and register the device."""
+        if not user_input or not user_input.get(CONF_PASTE_URL):
+            return self.async_show_form(
+                step_id="paste",
+                data_schema=vol.Schema({vol.Required(CONF_PASTE_URL): str}),
+                errors={"base": "paste_required"},
+                description_placeholders={
+                    "url": self._enrollment.oauth_url if self._enrollment else "",
+                    "email": self.config.get(CONF_EMAIL, ""),
+                },
+            )
+        if self._enrollment is None:
+            return await self.async_step_user()
         try:
-            if not self.login or self.login.session.closed:
-                _LOGGER.debug("Creating new login")
-                uuid_dict = await calculate_uuid(
-                    self.hass, self.config.get(CONF_EMAIL), self.config[CONF_URL]
-                )
-                uuid = uuid_dict["uuid"]
-                self.login = AlexaLogin(
-                    url=self.config[CONF_URL],
-                    email=self.config.get(CONF_EMAIL, ""),
-                    password=self.config.get(CONF_PASSWORD, ""),
-                    outputpath=self.hass.config.path,
-                    debug=self.config[CONF_DEBUG],
-                    otp_secret=self.config.get(CONF_OTPSECRET, ""),
-                    oauth=self.config.get(CONF_OAUTH, {}),
-                    uuid=uuid,
-                    oauth_login=True,
-                )
-            else:
-                _LOGGER.debug("Using existing login")
-                if self.config.get(CONF_EMAIL):
-                    self.login.email = self.config.get(CONF_EMAIL)
-                if self.config.get(CONF_PASSWORD):
-                    self.login.password = self.config.get(CONF_PASSWORD)
-                if self.config.get(CONF_OTPSECRET):
-                    self.login.set_totp(self.config.get(CONF_OTPSECRET, ""))
-        except AlexapyPyotpInvalidKey:
+            code = self._enrollment.parse_redirect_url(user_input[CONF_PASTE_URL])
+        except EnrollmentError as err:
+            _LOGGER.debug("Paste-URL rejected: %s", err)
             return self.async_show_form(
-                step_id="user",
-                data_schema=vol.Schema(self.proxy_schema),
-                errors={"base": "2fa_key_invalid"},
+                step_id="paste",
+                data_schema=vol.Schema({vol.Required(CONF_PASTE_URL): str}),
+                errors={"base": "paste_invalid"},
                 description_placeholders={
-                    "otp_secret": self.config.get(CONF_OTPSECRET, ""),
+                    "url": self._enrollment.oauth_url,
+                    "email": self.config.get(CONF_EMAIL, ""),
                 },
             )
-        hass_url: str = user_input.get(CONF_HASS_URL)
-        if hass_url is None:
-            try:
-                hass_url = get_url(self.hass, prefer_external=True)
-            except NoURLAvailableError:
-                _LOGGER.debug(
-                    "No Home Assistant URL found in config or detected; forcing user form"
-                )
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=vol.Schema(self.proxy_schema),
-                    description_placeholders={"message": ""},
-                )
-        hass_url_valid: bool = False
-        hass_url_error: str = ""
-        async with ClientSession() as session:
-            try:
-                async with session.get(hass_url) as resp:
-                    hass_url_valid = resp.status == 200
-            except ClientConnectionError as err:
-                hass_url_valid = False
-                hass_url_error = str(err)
-            except InvalidURL as err:
-                hass_url_valid = False
-                hass_url_error = str(err.__cause__)
-        if not hass_url_valid:
-            _LOGGER.debug(
-                "Unable to connect to provided Home Assistant url: %s", hass_url
-            )
+        try:
+            async with aiohttp.ClientSession() as session:
+                creds = await self._enrollment.async_register(session, code)
+        except EnrollmentError as err:
+            _LOGGER.debug("Device registration failed: %s", err)
             return self.async_show_form(
-                step_id="proxy_warning",
-                data_schema=vol.Schema(self.proxy_warning),
-                errors={},
+                step_id="paste",
+                data_schema=vol.Schema({vol.Required(CONF_PASTE_URL): str}),
+                errors={"base": "register_failed"},
                 description_placeholders={
-                    "email": self.login.email,
-                    "hass_url": hass_url,
-                    "error": hass_url_error,
+                    "url": self._enrollment.oauth_url,
+                    "email": self.config.get(CONF_EMAIL, ""),
                 },
             )
-        if (
-            user_input
-            and user_input.get(CONF_OTPSECRET)
-            and user_input.get(CONF_OTPSECRET).replace(" ", "")
-        ):
-            otp: str = self.login.get_totp_token()
-            if otp:
-                _LOGGER.debug("Generated TOTP: %s", otp)
-                return self.async_show_form(
-                    step_id="totp_register",
-                    data_schema=vol.Schema(self.totp_register),
-                    errors={},
-                    description_placeholders={
-                        "email": self.login.email,
-                        "url": self.login.url,
-                        "message": otp,
-                    },
-                )
-        return await self.async_step_start_proxy(user_input)
+        return await self._finish_secure_enrollment(creds)
+
+    async def _finish_secure_enrollment(self, creds):
+        """Persist only the durable device credentials — no password/seed."""
+        email = self.config[CONF_EMAIL]
+        url = self.config[CONF_URL]
+        # Runtime keys accounts by email and reconstructs AlexaLogin from this
+        # oauth dict; password/otp_secret are stored empty, never the secrets.
+        self.config[CONF_OAUTH] = {
+            "refresh_token": creds.refresh_token,
+            "mac_dms": creds.mac_dms,
+            "serial": creds.serial,
+            "customer_id": creds.customer_id,
+        }
+        self.config[CONF_PASSWORD] = ""
+        self.config[CONF_OTPSECRET] = ""
+        self.config.setdefault(CONF_DEBUG, DEFAULT_DEBUG)
+        self.config.setdefault(CONF_INCLUDE_DEVICES, "")
+        self.config.setdefault(CONF_EXCLUDE_DEVICES, "")
+        self.config.setdefault(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+        self.config.setdefault(CONF_QUEUE_DELAY, DEFAULT_QUEUE_DELAY)
+        self.config.setdefault(CONF_PUBLIC_URL, DEFAULT_PUBLIC_URL)
+        self.config.setdefault(
+            CONF_EXTENDED_ENTITY_DISCOVERY, DEFAULT_EXTENDED_ENTITY_DISCOVERY
+        )
+        self.config.pop("reauth", None)
+        self._enrollment = None
+        existing_entry = await self.async_set_unique_id(f"{email} - {url}")
+        if existing_entry:
+            self.hass.config_entries.async_update_entry(
+                existing_entry, data=self.config
+            )
+            await self.hass.config_entries.async_reload(existing_entry.entry_id)
+            _LOGGER.debug("Secure reauth successful for %s", hide_email(email))
+            return self.async_abort(reason="reauth_successful")
+        self._abort_if_unique_id_configured(self.config)
+        return self.async_create_entry(
+            title=f"{email} - {url}", data=self.config
+        )
 
     async def async_step_start_proxy(self, user_input=None):
         """Start proxy for login."""
@@ -620,40 +583,18 @@ class AlexaMediaFlowHandler(config_entries.ConfigFlow):
         return await self._test_login()
 
     async def async_step_reauth(self, user_input=None):
-        """Handle reauth processing for the config flow."""
+        """Handle reauth: re-enroll interactively via the paste-URL flow.
+
+        There is no unattended re-login — a dead refresh token requires a
+        person to log in through Amazon again (see the design's product
+        contract). Route straight to the secure enrollment form.
+        """
         self._save_user_input_to_config(user_input)
         self.config["reauth"] = True
-        reauth_schema = self._update_schema_defaults()
-        _LOGGER.debug(
-            "Creating reauth form with %s",
-            obfuscate(self.config),
-        )
+        self._enrollment = None
+        _LOGGER.debug("Creating reauth form with %s", obfuscate(self.config))
         self.automatic_steps = 0
-        if self.login is None:
-            try:
-                self.login = self.hass.data[DATA_ALEXAMEDIA]["accounts"][
-                    self.config[CONF_EMAIL]
-                ].get("login_obj")
-            except KeyError:
-                self.login = None
-        seconds_since_login: int = (
-            (datetime.datetime.now() - self.login.stats["login_timestamp"]).seconds
-            if self.login
-            else 60
-        )
-        if seconds_since_login < 60:
-            _LOGGER.debug(
-                "Relogin requested within %s seconds; manual login required",
-                seconds_since_login,
-            )
-            return self.async_show_form(
-                step_id="user",
-                data_schema=vol.Schema(reauth_schema),
-                description_placeholders={"message": "REAUTH"},
-            )
-        _LOGGER.debug("Attempting automatic relogin")
-        await sleep(15)
-        return await self.async_step_user_legacy(self.config)
+        return await self.async_step_user()
 
     async def _test_login(self):
         login = self.login
