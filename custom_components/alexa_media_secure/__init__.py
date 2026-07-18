@@ -791,41 +791,12 @@ async def async_setup_entry(hass, config_entry):
     hass.bus.async_listen("alexa_media_secure_relogin_success", login_success)
     try:
         _t = time.monotonic()
-        cookies = await login.load_cookie()
         cookie_login_ok = False
-        if cookies:
-            try:
-                if login._session is None or getattr(login._session, "closed", False):
-                    login._create_session(True)
-                async with login._session.get(
-                    "https://alexa.amazon.com/api/bootstrap",
-                    cookies=cookies,
-                    ssl=login._ssl,
-                    allow_redirects=False,
-                ) as response:
-                    if response.status == 200:
-                        data = loads(await response.text())
-                        auth = (data or {}).get("authentication") or {}
-                        customer_email = (auth.get("customerEmail") or "").lower()
-                        if (
-                            auth.get("authenticated")
-                            and customer_email == email.lower()
-                        ):
-                            _LOGGER.debug(
-                                "[BOOT] Cookie auth confirmed via /api/bootstrap"
-                            )
-                            login.status["login_successful"] = True
-                            login.customer_id = auth.get("customerId")
-                            login.stats["login_timestamp"] = datetime.now()
-                            login.stats["api_calls"] = 0
-                            await login.check_domain()
-                            await login.finalize_login()
-                            cookie_login_ok = True
-            except (JSONDecodeError, ValueError, aiohttp.ClientError) as ex:
-                _LOGGER.debug("[BOOT] Bootstrap cookie auth check failed: %s", ex)
-        if not cookie_login_ok and login.refresh_token:
-            # Secure path: no persisted cookies — reconstruct the session from
-            # the stored device refresh token (no scraping, no proxy).
+        cookies = None
+        # Secure path (design intent): when a device refresh token is stored,
+        # reconstruct the session entirely from it — no persisted cookies are
+        # read or written, so we never depend on a legacy cookie file.
+        if login.refresh_token:
             try:
                 if (
                     await login.refresh_access_token()
@@ -845,6 +816,8 @@ async def async_setup_entry(hass, config_entry):
             except (JSONDecodeError, ValueError, aiohttp.ClientError) as ex:
                 _LOGGER.debug("[BOOT] Refresh-token bootstrap failed: %s", ex)
         if not cookie_login_ok:
+            # No usable refresh token — fall back to interactive login.
+            cookies = await login.load_cookie()
             await login.login(cookies=cookies)
         _LOGGER.debug("[BOOT] login completed in %.2fs", time.monotonic() - _t)
         _t = time.monotonic()
