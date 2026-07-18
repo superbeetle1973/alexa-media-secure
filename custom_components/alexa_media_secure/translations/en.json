@@ -14,7 +14,10 @@
       "invalid_url": "URL is invalid: {message}",
       "oauth_error": "Could not complete OAuth login. Please try again.",
       "unable_to_connect_hass_url": "Unable to connect to Home Assistant Local URL. Please check the URL under Settings > System > Network > Home Assistant URL > Local network",
-      "unknown_error": "Unknown error: {message}"
+      "unknown_error": "Unknown error: {message}",
+      "paste_required": "Paste the full redirect URL from your browser.",
+      "paste_invalid": "That URL is not a valid Amazon maplanding redirect for this region.",
+      "register_failed": "Device registration failed (the code may have expired). Restart the login and paste the URL within ~5 minutes."
     },
     "step": {
       "proxy_warning": {
@@ -32,25 +35,24 @@
         "title": "Alexa Media Player - OTP Confirmation"
       },
       "user": {
+        "title": "Alexa Media Player Secure",
+        "description": "Enter the Amazon account email (label) and region. You will log in on Amazon's own page next — your password and 2FA are never entered here or stored.",
         "data": {
-          "debug": "Advanced debug",
-          "email": "Email Address",
-          "exclude_devices": "or Exclude these devices from all (comma separated)",
-          "extended_entity_discovery": "Include additional sensors, switches and lights",
-          "hass_url": "Local network URL to access Home Assistant",
-          "include_devices": "Only include these devices (comma separated)",
-          "otp_secret": "52-character Authenticator App Key for Amazon 2SV",
-          "password": "Password",
-          "public_url": "Public URL shared with external hosted services",
-          "queue_delay": "Delay to queue multiple commands together (seconds)",
-          "scan_interval": "Scheduled polling interval (seconds)",
-          "securitycode": "One-time password (OTP)",
-          "should_get_network": "Discover Alexa network",
-          "url": "Amazon region domain (e.g., amazon.co.uk)"
-        },
-        "data_description": {
-          "debug": "Enables very verbose, trace-level logging for advanced troubleshooting.\nNot recommended for normal operation due to increased log volume.\nEnsure logger levels are set to DEBUG for full output.",
-          "otp_secret": "Example: 35T5 LQSY I5IO 3EFQ LGAJ I6YB JWBY JJPR PYT7 XPPW IDAK SQBJ CVXA"
+          "email": "Amazon account email (for labeling)",
+          "url": "Amazon region (e.g. amazon.com)",
+          "include_devices": "Include devices (optional)",
+          "exclude_devices": "Exclude devices (optional)",
+          "scan_interval": "Scan interval (seconds)",
+          "queue_delay": "Queue delay (seconds)",
+          "extended_entity_discovery": "Extended entity discovery",
+          "debug": "Enable debug logging"
+        }
+      },
+      "paste": {
+        "title": "Complete Amazon login",
+        "description": "1. Open this URL in your browser and log in to Amazon:\n\n{url}\n\n2. After login you land on a blank/error page at /ap/maplanding — that is expected.\n3. Copy the FULL address-bar URL and paste it below (it expires in ~5 minutes).",
+        "data": {
+          "paste_url": "Pasted redirect URL"
         }
       }
     }
