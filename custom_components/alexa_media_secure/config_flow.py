@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 
 from aiohttp import ClientConnectionError, ClientSession, InvalidURL, web, web_response
 from aiohttp.web_exceptions import HTTPBadRequest
-from alexapy import (
+from alexapy_secure import (
     AlexaLogin,
     AlexaProxy,
     AlexapyConnectionError,
@@ -687,11 +687,11 @@ class AlexaMediaFlowHandler(config_entries.ConfigFlow):
                 )
                 _LOGGER.debug("Reauth successful for %s", hide_email(email))
                 self.hass.bus.async_fire(
-                    "alexa_media_relogin_success",
+                    "alexa_media_secure_relogin_success",
                     event_data={"email": hide_email(email), "url": login.url},
                 )
                 host = urlparse(login.url).hostname or login.url
-                notification_id = f"alexa_media_{slugify(email)}_{slugify(host)}"
+                notification_id = f"alexa_media_secure_{slugify(email)}_{slugify(host)}"
                 async_dismiss_persistent_notification(
                     self.hass,
                     notification_id,
@@ -755,7 +755,7 @@ class AlexaMediaFlowHandler(config_entries.ConfigFlow):
         if login.status and (login.status.get("login_failed")):
             _LOGGER.debug("Login failed: %s", login.status.get("login_failed"))
             host = urlparse(login.url).hostname or login.url
-            notification_id = f"alexa_media_{slugify(email)}_{slugify(host)}"
+            notification_id = f"alexa_media_secure_{slugify(email)}_{slugify(host)}"
             await login.close()
             async_dismiss_persistent_notification(
                 self.hass,

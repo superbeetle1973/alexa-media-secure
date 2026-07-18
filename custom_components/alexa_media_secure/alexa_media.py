@@ -9,7 +9,7 @@ https://community.home-assistant.io/t/echo-devices-alexa-as-media-player-testers
 
 import logging
 
-from alexapy import AlexaAPI, hide_email
+from alexapy_secure import AlexaAPI, hide_email
 
 from .const import DATA_ALEXAMEDIA
 

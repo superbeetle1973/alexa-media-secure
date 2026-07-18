@@ -9,7 +9,7 @@ https://community.home-assistant.io/t/echo-devices-alexa-as-media-player-testers
 
 import logging
 
-from alexapy import hide_serial
+from alexapy_secure import hide_serial
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,

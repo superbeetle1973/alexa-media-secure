@@ -13,8 +13,8 @@ import hashlib
 import logging
 from typing import Any, Callable, Optional, TypeVar, overload
 
-from alexapy import AlexapyLoginCloseRequested, AlexapyLoginError, hide_email
-from alexapy.alexalogin import AlexaLogin
+from alexapy_secure import AlexapyLoginCloseRequested, AlexapyLoginError, hide_email
+from alexapy_secure.alexalogin import AlexaLogin
 from dictor import dictor
 from homeassistant.const import CONF_EMAIL, CONF_URL
 from homeassistant.core import HomeAssistant
@@ -389,7 +389,7 @@ def report_relogin_required(hass, login, email) -> bool:
                 login.stats,
             )
             hass.bus.async_fire(
-                "alexa_media_relogin_required",
+                "alexa_media_secure_relogin_required",
                 event_data={
                     "email": hide_email(email),
                     "url": login.url,

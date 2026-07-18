@@ -12,8 +12,8 @@ from dataclasses import dataclass
 import logging
 from typing import Any, Callable
 
-from alexapy import AlexaAPI, AlexapyLoginError, hide_email
-from alexapy.errors import AlexapyConnectionError
+from alexapy_secure import AlexaAPI, AlexapyLoginError, hide_email
+from alexapy_secure.errors import AlexapyConnectionError
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv, entity_registry as er
 import voluptuous as vol
@@ -216,7 +216,7 @@ class AlexaMediaServices:
             # Store task handle for proper cleanup on unload
             task = self.hass.async_create_task(
                 _run_update_last_called(email, login_obj),
-                name=f"alexa_media.update_last_called.{hide_email(email)}",
+                name=f"alexa_media_secure.update_last_called.{hide_email(email)}",
             )
             account_dict["service_update_last_called_task"] = task
 

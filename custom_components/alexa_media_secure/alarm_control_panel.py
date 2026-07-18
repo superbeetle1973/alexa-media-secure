@@ -11,7 +11,7 @@ from asyncio import sleep
 import logging
 from typing import Optional
 
-from alexapy import hide_email, hide_serial
+from alexapy_secure import hide_email, hide_serial
 from homeassistant.components.alarm_control_panel import AlarmControlPanelEntity
 from homeassistant.const import CONF_EMAIL, STATE_UNAVAILABLE
 from homeassistant.exceptions import ConfigEntryNotReady

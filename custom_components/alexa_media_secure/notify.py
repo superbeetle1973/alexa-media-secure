@@ -11,7 +11,7 @@ import asyncio
 import json
 import logging
 
-from alexapy.helpers import hide_email, hide_serial
+from alexapy_secure.helpers import hide_email, hide_serial
 from homeassistant.components.notify import (
     ATTR_DATA,
     ATTR_TARGET,
