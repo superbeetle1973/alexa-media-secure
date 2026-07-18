@@ -10,7 +10,7 @@ https://community.home-assistant.io/t/echo-devices-alexa-as-media-player-testers
 import datetime
 import logging
 
-from alexapy import AlexaAPI
+from alexapy_secure import AlexaAPI
 from homeassistant.exceptions import ConfigEntryNotReady, NoEntitySpecifiedError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import EntityCategory

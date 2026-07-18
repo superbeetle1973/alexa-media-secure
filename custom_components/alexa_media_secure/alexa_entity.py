@@ -15,7 +15,7 @@ import logging
 import re
 from typing import Any, Optional, TypedDict
 
-from alexapy import AlexaAPI, AlexaLogin
+from alexapy_secure import AlexaAPI, AlexaLogin
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .helpers import safe_get

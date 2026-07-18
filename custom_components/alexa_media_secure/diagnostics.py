@@ -59,7 +59,7 @@ def _maybe_keys(val: Any, limit: int = 50) -> list[str] | None:
                 # Emails/titles/tokens sometimes appear as keys in AMP structures.
                 if re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", s):
                     try:
-                        from alexapy import (  # pylint: disable=import-outside-toplevel
+                        from alexapy_secure import (  # pylint: disable=import-outside-toplevel
                             hide_email,
                         )
 
@@ -293,7 +293,7 @@ def _obfuscate_title_with_email(title: str | None, email: str | None) -> str | N
 
     try:
         # Lazy import to keep diagnostics import cheap
-        from alexapy import hide_email  # pylint: disable=import-outside-toplevel
+        from alexapy_secure import hide_email  # pylint: disable=import-outside-toplevel
 
         redacted = hide_email(email)
     except (ImportError, AttributeError, TypeError, ValueError):
@@ -415,7 +415,7 @@ async def async_get_device_diagnostics(
 
     try:
         # Lazy import to keep diagnostics import cheap
-        from alexapy import hide_serial  # pylint: disable=import-outside-toplevel
+        from alexapy_secure import hide_serial  # pylint: disable=import-outside-toplevel
 
         safe_serial = hide_serial(device.serial_number)
     except (ImportError, AttributeError, TypeError, ValueError):

@@ -12,8 +12,8 @@ from dataclasses import dataclass
 import logging
 from typing import Any, Callable
 
-from alexapy import AlexaAPI, AlexapyLoginError, hide_email
-from alexapy.errors import AlexapyConnectionError
+from alexapy_secure import AlexaAPI, AlexapyLoginError, hide_email
+from alexapy_secure.errors import AlexapyConnectionError
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv, entity_registry as er
 import voluptuous as vol

@@ -21,7 +21,7 @@ from .const import (
 )
 
 if TYPE_CHECKING:
-    from alexapy import AlexaLogin, HTTP2EchoClient
+    from alexapy_secure import AlexaLogin, HTTP2EchoClient
 
     from .coordinator import AlexaMediaCoordinator
 

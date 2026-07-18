@@ -18,7 +18,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import aiohttp
-from alexapy import (
+from alexapy_secure import (
     AlexaAPI,
     AlexaLogin,
     AlexapyConnectionError,
@@ -28,8 +28,8 @@ from alexapy import (
     hide_serial,
     obfuscate,
 )
-from alexapy.errors import AlexapyTooManyRequestsError
-from alexapy.helpers import delete_cookie as alexapy_delete_cookie
+from alexapy_secure.errors import AlexapyTooManyRequestsError
+from alexapy_secure.helpers import delete_cookie as alexapy_delete_cookie
 import async_timeout
 from homeassistant.components.persistent_notification import (
     async_create as async_create_persistent_notification,

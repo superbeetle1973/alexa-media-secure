@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 
 from aiohttp import ClientConnectionError, ClientSession, InvalidURL, web, web_response
 from aiohttp.web_exceptions import HTTPBadRequest
-from alexapy import (
+from alexapy_secure import (
     AlexaLogin,
     AlexaProxy,
     AlexapyConnectionError,

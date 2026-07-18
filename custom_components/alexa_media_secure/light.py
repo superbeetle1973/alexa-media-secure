@@ -12,7 +12,7 @@ import logging
 from math import sqrt
 from typing import Optional
 
-from alexapy import AlexaAPI, hide_serial
+from alexapy_secure import AlexaAPI, hide_serial
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
     ATTR_COLOR_TEMP_KELVIN,
